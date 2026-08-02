@@ -6,6 +6,7 @@
  * eclipse, your totality duration) and a tear-off admit-one stub sit on top.
  * Same {model, variant} signature as PosterSVG.
  */
+import { useMemo } from "react";
 import { fitProjection } from "@/lib/projection";
 import { formatDuration, formatObscuration } from "@/lib/astronomy";
 import { CircleMotif } from "@/poster/layers/CircleMotif";
@@ -151,14 +152,18 @@ export function TicketSVG({
   ].join(" ");
 
   // Same projection the poster uses, so the geography matches the variant.
-  const center = {
-    lat: loc.lat + variant.crop.offsetLat,
-    lon: loc.lon + variant.crop.offsetLon,
-  };
-  const fit = fitProjection(eclipse.path, loc, W, H, {
-    spanDeg: variant.crop.spanDeg,
-    center,
-  });
+  // Memoized: refit only when the crop actually moves.
+  const { path: eclipsePath } = eclipse;
+  const { lat, lon } = loc;
+  const { spanDeg, offsetLat, offsetLon } = variant.crop;
+  const fit = useMemo(
+    () =>
+      fitProjection(eclipsePath, { lat, lon }, W, H, {
+        spanDeg,
+        center: { lat: lat + offsetLat, lon: lon + offsetLon },
+      }),
+    [eclipsePath, lat, lon, W, H, spanDeg, offsetLat, offsetLon],
+  );
 
   // ── Copy ────────────────────────────────────────────────────
   const M = 52;
@@ -234,6 +239,12 @@ export function TicketSVG({
       <GeoLayer
         fit={fit}
         path={eclipse.path}
+        limits={eclipse.limits}
+        band={eclipse.band}
+        mode={variant.pathStyle}
+        bandFill={variant.umbraFill}
+        bandStroke={variant.umbraStroke}
+        baseMap={variant.baseMap}
         location={{ lat: loc.lat, lon: loc.lon }}
         clipId={clipId}
         style={{

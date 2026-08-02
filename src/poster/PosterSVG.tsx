@@ -4,6 +4,7 @@
  * grain) is randomized; the layout is composed directly (PLAN.md §2). PNG
  * export stays crisp because it's all SVG.
  */
+import { useMemo } from "react";
 import { fitProjection } from "@/lib/projection";
 import {
   formatDuration,
@@ -71,14 +72,19 @@ export function PosterSVG({
   const uid = variant.seed.replace(/[^A-Za-z0-9]/g, "");
   const L = variant.layout;
 
-  const center = {
-    lat: model.location.lat + variant.crop.offsetLat,
-    lon: model.location.lon + variant.crop.offsetLon,
-  };
-  const fit = fitProjection(model.eclipse.path, model.location, W, H, {
-    spanDeg: variant.crop.spanDeg,
-    center,
-  });
+  // Memoized so the fit (and the geometry GeoLayer derives from it) only
+  // recomputes when the crop actually moves — not on every type/color tweak.
+  const { path: eclipsePath } = model.eclipse;
+  const { lat, lon } = model.location;
+  const { spanDeg, offsetLat, offsetLon } = variant.crop;
+  const fit = useMemo(
+    () =>
+      fitProjection(eclipsePath, { lat, lon }, W, H, {
+        spanDeg,
+        center: { lat: lat + offsetLat, lon: lon + offsetLon },
+      }),
+    [eclipsePath, lat, lon, W, H, spanDeg, offsetLat, offsetLon],
+  );
 
   const gradId = `atmo-${uid}`;
   const grainId = `grain-${uid}`;
@@ -237,7 +243,13 @@ export function PosterSVG({
       <GeoLayer
         fit={fit}
         path={model.eclipse.path}
-        location={model.location}
+        limits={model.eclipse.limits}
+        band={model.eclipse.band}
+        mode={variant.pathStyle}
+        bandFill={variant.umbraFill}
+        bandStroke={variant.umbraStroke}
+        baseMap={variant.baseMap}
+        location={{ ...model.location, name: model.markerText || model.location.name }}
         clipId={clipId}
         style={{
           land: "rgba(255,255,255,0.06)",

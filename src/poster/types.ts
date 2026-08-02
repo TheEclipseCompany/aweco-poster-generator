@@ -20,6 +20,8 @@ export interface PosterModel {
   ratio: Ratio;
   /** Crop zoom — latitude degrees spanned by the frame. */
   spanDeg?: number;
+  /** Custom text beside the map marker (absent = the location name). */
+  markerText?: string;
 }
 
 export const FRAME: Record<Ratio, { w: number; h: number }> = {

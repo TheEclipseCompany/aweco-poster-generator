@@ -4,6 +4,7 @@
  * atmosphere + geography, ringed with stamp-style line detail (concentric rings
  * and radial ticks). Same {model, variant} signature as PosterSVG/TicketSVG.
  */
+import { useMemo } from "react";
 import { fitProjection } from "@/lib/projection";
 import { formatDuration, formatObscuration } from "@/lib/astronomy";
 import { GeoLayer } from "@/poster/layers/GeoLayer";
@@ -57,14 +58,18 @@ export function StampSVG({
   const arcD = `M ${cx - rArc} ${cy} A ${rArc} ${rArc} 0 0 0 ${cx + rArc} ${cy}`;
 
   // Geography — same projection style the poster uses, clipped to the disc.
-  const center = {
-    lat: loc.lat + variant.crop.offsetLat,
-    lon: loc.lon + variant.crop.offsetLon,
-  };
-  const fit = fitProjection(eclipse.path, loc, W, H, {
-    spanDeg: variant.crop.spanDeg,
-    center,
-  });
+  // Memoized: refit only when the crop actually moves.
+  const { path: eclipsePath } = eclipse;
+  const { lat, lon } = loc;
+  const { spanDeg, offsetLat, offsetLon } = variant.crop;
+  const fit = useMemo(
+    () =>
+      fitProjection(eclipsePath, { lat, lon }, W, H, {
+        spanDeg,
+        center: { lat: lat + offsetLat, lon: lon + offsetLon },
+      }),
+    [eclipsePath, lat, lon, W, H, spanDeg, offsetLat, offsetLon],
+  );
 
   const placeName = (loc.admin ? `${loc.name}, ${loc.admin}` : loc.name).toUpperCase();
   const inTot = c.inTotality;
@@ -112,6 +117,12 @@ export function StampSVG({
         <GeoLayer
           fit={fit}
           path={eclipse.path}
+          limits={eclipse.limits}
+          band={eclipse.band}
+          mode={variant.pathStyle}
+          bandFill={variant.umbraFill}
+          bandStroke={variant.umbraStroke}
+          baseMap={variant.baseMap}
           location={{ lat: loc.lat, lon: loc.lon }}
           clipId={clipId}
           style={{

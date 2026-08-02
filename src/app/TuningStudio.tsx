@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { computeCircumstances } from "@/lib/astronomy";
+import { BASE_MAPS } from "@/lib/coastline";
 import { ECLIPSES, type EclipseId } from "@/data/eclipses";
-import { makeVariant, DEFAULT_TUNE, type TuneConfig, type Corner, type LayoutConfig } from "@/poster/variant";
+import { makeVariant, BLEND_MODES, DEFAULT_TUNE, type BlendMode, type TuneConfig, type Corner, type LayoutConfig } from "@/poster/variant";
 import { RECIPES } from "@/poster/gradient";
 import { ASPIRATIONS } from "@/data/copy";
 import { randomSeed } from "@/lib/rng";
@@ -102,6 +103,8 @@ export function TuningStudio({ eclipseId, location, aspiration, baseSpanDeg }: P
     setCfg((c) => ({ ...c, layout: { ...c.layout, awe: { ...c.layout.awe, ...patch } } }));
   const pair = (key: "spanMul" | "grain" | "headlineScale", idx: 0 | 1, n: number) =>
     setCfg((c) => { const v = [...c[key]] as [number, number]; v[idx] = n; return { ...c, [key]: v }; });
+  const setFill = (patch: Partial<TuneConfig["umbraFill"]>) =>
+    setCfg((c) => ({ ...c, umbraFill: { ...c.umbraFill, ...patch } }));
 
   const panel: React.CSSProperties = {
     background: "#15171c", border: "1px solid #2a2d33", borderRadius: 4, padding: 14, minWidth: 290,
@@ -167,7 +170,41 @@ export function TuningStudio({ eclipseId, location, aspiration, baseSpanDeg }: P
         </div>
 
         <div style={panel}>
-          <p style={h}>CROP · TYPE · GRAIN</p>
+          <p style={h}>MAP · PATH · CROP · TYPE · GRAIN</p>
+          <div style={{ marginBottom: 6 }}>
+            {BASE_MAPS.map((m, i) => (
+              <Check key={m} on={cfg.baseMaps[i]} label={m}
+                onToggle={() => setCfg((c) => { const v = [...c.baseMaps]; v[i] = !v[i]; return { ...c, baseMaps: v }; })} />
+            ))}
+          </div>
+          <Range label="umbra %" min={0} max={1} step={0.02} value={cfg.umbraProb} onChange={(n) => setCfg((c) => ({ ...c, umbraProb: n }))} />
+          {cfg.umbraProb > 0 && (
+            <>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                <Check on={cfg.umbraStroke} label="stroke" onToggle={() => setCfg((c) => ({ ...c, umbraStroke: !c.umbraStroke }))} />
+                <Check on={cfg.umbraFill.on} label="fill" onToggle={() => setFill({ on: !cfg.umbraFill.on })} />
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, opacity: cfg.umbraFill.on ? 1 : 0.4, pointerEvents: cfg.umbraFill.on ? "auto" : "none" }}>
+                  <input type="color" value={cfg.umbraFill.color} onChange={(e) => setFill({ color: e.target.value })} style={{ width: 30, height: 20, padding: 0, border: "1px solid #2a2d33", borderRadius: 2, background: "transparent", cursor: "pointer" }} />
+                  <span style={{ ...lbl, fontSize: 9 }}>{cfg.umbraFill.color}</span>
+                </div>
+              </div>
+              <div style={{ marginBottom: 6, opacity: cfg.umbraFill.on ? 1 : 0.4, pointerEvents: cfg.umbraFill.on ? "auto" : "none" }}>
+                <Range label="fill opacity" min={0} max={1} step={0.01} value={cfg.umbraFill.opacity} onChange={(n) => setFill({ opacity: n })} />
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ ...lbl, width: 110 }}>blend</span>
+                  <select
+                    style={{ flex: 1, fontFamily: MONO, fontSize: 10, color: "#e2e2e2", background: "#0e1216", border: "1px solid #2a2d33", borderRadius: 2, padding: "4px 6px" }}
+                    value={cfg.umbraFill.blend ?? "normal"}
+                    onChange={(e) => setFill({ blend: e.target.value as BlendMode })}
+                  >
+                    {BLEND_MODES.map((b) => (
+                      <option key={b} value={b} style={{ color: "#000" }}>{b}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </>
+          )}
           <Range label="zoom min" min={0.5} max={2} step={0.05} value={cfg.spanMul[0]} onChange={(n) => pair("spanMul", 0, n)} />
           <Range label="zoom max" min={0.5} max={2} step={0.05} value={cfg.spanMul[1]} onChange={(n) => pair("spanMul", 1, n)} />
           <Range label="pan" min={0} max={0.35} step={0.01} value={cfg.panFrac} onChange={(n) => setCfg((c) => ({ ...c, panFrac: n }))} />

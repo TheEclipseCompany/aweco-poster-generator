@@ -1,19 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { computeCircumstances } from "@/lib/astronomy";
 import { ECLIPSES, ECLIPSE_LIST, type EclipseId } from "@/data/eclipses";
 import { searchCities, nearestCityTz, type City } from "@/lib/cities";
 import { ASPIRATIONS } from "@/data/copy";
-import { makeVariant, type PosterVariant, type Corner, type LayoutConfig } from "@/poster/variant";
+import { makeVariant, BLEND_MODES, DEFAULT_TUNE, DEFAULT_UMBRA_FILL, type BlendMode, type PosterVariant, type Corner, type LayoutConfig, type UmbraFill } from "@/poster/variant";
 import { makeGradient, RECIPES, type GradientSpec } from "@/poster/gradient";
 import { makeRng, randomSeed } from "@/lib/rng";
 import { PosterSVG } from "@/poster/PosterSVG";
 import { TicketSVG } from "@/poster/TicketSVG";
 import { StampSVG } from "@/poster/StampSVG";
 import { FRAME, type PosterLocation, type Ratio } from "@/poster/types";
-import { decodePoster, type PosterPayload } from "@/lib/posterLink";
+import { BASE_MAPS } from "@/lib/coastline";
+import { decodePoster, posterHref, type PosterPayload } from "@/lib/posterLink";
 import { loadSignatureFile, type AudioSignature } from "@/lib/audioSignature";
 
 const MONO = "var(--font-geist-mono), monospace";
@@ -96,6 +97,7 @@ export function PosterStudio({ encoded }: { encoded?: string | null }) {
   const [mLat, setMLat] = useState("");
   const [mLon, setMLon] = useState("");
   const [headline, setHeadline] = useState(init.headline);
+  const [markerText, setMarkerText] = useState(init.markerText ?? "");
   const [ratio, setRatio] = useState<Ratio>(init.ratio);
   const [seed, setSeed] = useState(init.seed);
   const [variant, setVariant] = useState<PosterVariant>(init.variant);
@@ -129,6 +131,20 @@ export function PosterStudio({ encoded }: { encoded?: string | null }) {
       setAudioBusy(false);
     }
   };
+
+  // Keep the address bar in sync with the poster on screen, so copying the
+  // URL always shares exactly what you see. Debounced (sliders fire fast) and
+  // via native replaceState — shallow, no server round-trip.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      window.history.replaceState(
+        null,
+        "",
+        posterHref({ seed, eclipseId, location, headline, ratio, variant, markerText: markerText || undefined }),
+      );
+    }, 300);
+    return () => clearTimeout(t);
+  }, [seed, eclipseId, location, headline, ratio, variant, markerText]);
 
   const eclipse = ECLIPSES[eclipseId];
   const base = eclipse.baseSpanDeg;
@@ -174,6 +190,10 @@ export function PosterStudio({ encoded }: { encoded?: string | null }) {
   const toggleRing = () =>
     setMotif(ringOn ? { kind: "none" } : { kind: "ring", scale: m.scale || 0.35 });
 
+  const uf = variant.umbraFill ?? DEFAULT_UMBRA_FILL;
+  const setUmbraFill = (patch: Partial<UmbraFill>) =>
+    setVariant((v) => ({ ...v, umbraFill: { ...(v.umbraFill ?? DEFAULT_UMBRA_FILL), ...patch } }));
+
   // Gradient is regenerated from a recipe + contained flag + its own seed.
   const recipeIdx = recipeIndexOf(variant.gradient);
   const contained = variant.gradient.mode === "contained";
@@ -204,7 +224,16 @@ export function PosterStudio({ encoded }: { encoded?: string | null }) {
     const s = randomSeed();
     setSeed(s);
     setGradSeed(s);
-    setVariant(makeVariant(s, base));
+    // Everything re-rolls — including path treatment and base map — but the
+    // authored umbra styling (wash colour/opacity/blend, stroke) rides along
+    // as the look applied whenever a roll lands on umbra.
+    setVariant((v) =>
+      makeVariant(s, base, {
+        ...DEFAULT_TUNE,
+        umbraFill: v.umbraFill ?? DEFAULT_TUNE.umbraFill,
+        umbraStroke: v.umbraStroke ?? DEFAULT_TUNE.umbraStroke,
+      }),
+    );
   };
 
   const panel: React.CSSProperties = { background: "#15171c", border: "1px solid #2a2d33", borderRadius: 4, padding: 14 };
@@ -252,6 +281,16 @@ export function PosterStudio({ encoded }: { encoded?: string | null }) {
               <input style={{ ...input, flex: 1, fontSize: 11 }} placeholder="lat" value={mLat} onChange={(e) => setMLat(e.target.value)} inputMode="decimal" />
               <input style={{ ...input, flex: 1, fontSize: 11 }} placeholder="long" value={mLon} onChange={(e) => setMLon(e.target.value)} inputMode="decimal" />
               <button onClick={applyManual} style={{ fontFamily: MONO, fontSize: 11, color: "#0e1216", background: "#e2e2e2", border: "none", borderRadius: 2, padding: "0 12px", cursor: "pointer" }}>SET</button>
+            </div>
+            <div style={{ marginTop: 6 }}>
+              <span style={{ ...lbl, display: "block", marginBottom: 3 }}>marker label</span>
+              <input
+                style={{ ...input, fontSize: 11 }}
+                value={markerText}
+                placeholder={location.name}
+                onChange={(e) => setMarkerText(e.target.value)}
+                spellCheck={false}
+              />
             </div>
             {!circumstances.visible && (
               <p style={{ fontFamily: MONO, fontSize: 10, color: "#d8915a", margin: "8px 0 0" }}>Not on the path of totality from here.</p>
@@ -348,7 +387,35 @@ export function PosterStudio({ encoded }: { encoded?: string | null }) {
           </div>
 
           <div style={panel}>
-            <p style={h}>CROP · GRAIN</p>
+            <p style={h}>MAP · PATH · CROP · GRAIN</p>
+            <Seg label="map" value={variant.baseMap ?? "land-110m"} options={BASE_MAPS} onChange={(v) => setVariant((x) => ({ ...x, baseMap: v }))} />
+            <Seg label="path" value={variant.pathStyle ?? "centerline"} options={["centerline", "umbra"] as const} onChange={(v) => setVariant((x) => ({ ...x, pathStyle: v }))} />
+            {(variant.pathStyle ?? "centerline") === "umbra" && !eclipse.limits && (
+              <p style={{ fontFamily: MONO, fontSize: 9.5, color: "#d8915a", margin: "0 0 6px" }}>No umbra outline for this eclipse — drawing the centerline.</p>
+            )}
+            {(variant.pathStyle ?? "centerline") === "umbra" && eclipse.limits && (
+              <>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                  <Check on={variant.umbraStroke ?? true} label="stroke" onToggle={() => setVariant((v) => ({ ...v, umbraStroke: !(v.umbraStroke ?? true) }))} />
+                  <Check on={uf.on} label="fill" onToggle={() => setUmbraFill({ on: !uf.on })} />
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, opacity: uf.on ? 1 : 0.4, pointerEvents: uf.on ? "auto" : "none" }}>
+                    <input type="color" value={uf.color} onChange={(e) => setUmbraFill({ color: e.target.value })} style={{ width: 30, height: 20, padding: 0, border: "1px solid #2a2d33", borderRadius: 2, background: "transparent", cursor: "pointer" }} />
+                    <span style={{ ...lbl, fontSize: 9 }}>{uf.color}</span>
+                  </div>
+                </div>
+                <div style={{ marginBottom: 6, opacity: uf.on ? 1 : 0.4, pointerEvents: uf.on ? "auto" : "none" }}>
+                  <Range label="fill opacity" min={0} max={1} step={0.01} value={uf.opacity} onChange={(n) => setUmbraFill({ opacity: n })} />
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ ...lbl, width: 96 }}>blend</span>
+                    <select style={{ ...input, flex: 1, fontSize: 10, padding: "4px 6px" }} value={uf.blend ?? "normal"} onChange={(e) => setUmbraFill({ blend: e.target.value as BlendMode })}>
+                      {BLEND_MODES.map((b) => (
+                        <option key={b} value={b} style={{ color: "#000" }}>{b}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </>
+            )}
             <Range label="zoom" min={0.5} max={2} step={0.01} value={zoom} onChange={setZoom} />
             <Range label="pan x" min={-0.35} max={0.35} step={0.01} value={panX} onChange={(n) => setCrop({ offsetLon: n * c.spanDeg })} />
             <Range label="pan y" min={-0.35} max={0.35} step={0.01} value={panY} onChange={(n) => setCrop({ offsetLat: n * c.spanDeg })} />
@@ -410,7 +477,7 @@ export function PosterStudio({ encoded }: { encoded?: string | null }) {
             ) : isStamp ? (
               <StampSVG model={{ eclipse, location, circumstances, aspiration: headline, ratio }} variant={variant} />
             ) : (
-              <PosterSVG model={{ eclipse, location, circumstances, aspiration: headline, ratio }} variant={variant} audio={audio} />
+              <PosterSVG model={{ eclipse, location, circumstances, aspiration: headline, ratio, markerText: markerText || undefined }} variant={variant} audio={audio} />
             )}
           </div>
           <div style={{ display: "flex", gap: 6, marginTop: 12 }}>

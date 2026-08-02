@@ -16,6 +16,8 @@ export interface PosterPayload {
   headline: string;
   ratio: Ratio;
   variant: PosterVariant;
+  /** Custom text beside the map marker (absent = the location name). */
+  markerText?: string;
 }
 
 export function encodePoster(p: PosterPayload): string {

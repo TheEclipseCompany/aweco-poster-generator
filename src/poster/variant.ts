@@ -5,6 +5,7 @@
  * everything *locked* (fonts, hierarchy, logos, path treatment, data, the grain
  * recipe). Same seed → same poster.
  */
+import { BASE_MAPS, type BaseMap } from "@/lib/coastline";
 import type { Rng } from "@/lib/rng";
 import { makeRng } from "@/lib/rng";
 import { makeGradient, RECIPES, type GradientSpec } from "@/poster/gradient";
@@ -13,6 +14,28 @@ export type Corner = "tl" | "tr" | "bl" | "br";
 export type HAlign = "left" | "center" | "right";
 export type VPos = "high" | "low";
 export type MotifKind = "none" | "disc" | "ring" | "phases";
+/** Which path-of-totality geometry the map draws. */
+export type PathStyle = "centerline" | "umbra";
+
+/** How the umbra wash composites against the poster beneath it. */
+export const BLEND_MODES = [
+  "normal", "multiply", "screen", "overlay", "darken", "lighten",
+  "color-dodge", "color-burn", "hard-light", "soft-light",
+  "difference", "exclusion", "hue", "saturation", "color", "luminosity",
+] as const;
+export type BlendMode = (typeof BLEND_MODES)[number];
+
+/** Optional wash filling the totality band (umbra mode only). */
+export interface UmbraFill {
+  on: boolean;
+  color: string;
+  /** 0..1 fill opacity. */
+  opacity: number;
+  /** mix-blend-mode of the wash (absent = normal). */
+  blend?: BlendMode;
+}
+
+export const DEFAULT_UMBRA_FILL: UmbraFill = { on: false, color: "#ffffff", opacity: 0.12, blend: "normal" };
 
 /**
  * Composable layout — each element is placed/styled independently (no curated
@@ -96,6 +119,15 @@ export interface PosterVariant {
   grainSeed: number;
   /** Ticket-only: which edge the partial gradient comes in from. */
   gradientDir?: GradientDir;
+  /** Draw the centre line or the full umbra outline (absent = centerline,
+   *  so older share links keep decoding). */
+  pathStyle?: PathStyle;
+  /** Optional band wash under the umbra outline (absent = no fill). */
+  umbraFill?: UmbraFill;
+  /** Stroke the umbra outline (absent = true, so older links keep the line). */
+  umbraStroke?: boolean;
+  /** Base-map geometry behind the path (absent = land-110m). */
+  baseMap?: BaseMap;
 }
 
 /** Tunable ranges/weights for the generator (dialed in the tuning studio). */
@@ -121,6 +153,13 @@ export interface TuneConfig {
   recipes: boolean[];
   /** Composed layout (directly authored, not randomized). */
   layout: LayoutConfig;
+  /** Chance a design draws the full umbra band instead of the centre line. */
+  umbraProb: number;
+  /** Wash styling applied when a design rolls umbra (authored, not random). */
+  umbraFill: UmbraFill;
+  umbraStroke: boolean;
+  /** Base maps the generator may pick from, aligned to BASE_MAPS order. */
+  baseMaps: boolean[];
   /** Crop zoom: span multiplier [min, max]. */
   spanMul: [number, number];
   /** Max pan as a fraction of span. */
@@ -136,6 +175,10 @@ export const DEFAULT_TUNE: TuneConfig = {
   containedProb: 0.28,
   recipes: RECIPES.map(() => true),
   layout: DEFAULT_LAYOUT,
+  umbraProb: 0.5,
+  umbraFill: DEFAULT_UMBRA_FILL,
+  umbraStroke: true,
+  baseMaps: BASE_MAPS.map(() => true),
   spanMul: [0.82, 1.35],
   panFrac: 0.18,
   grain: [0.46, 0.64],
@@ -177,15 +220,29 @@ export function makeVariant(
     offsetLon: rng.float(-cfg.panFrac * 1.2, cfg.panFrac * 1.2) * spanDeg,
   };
 
+  const headlineScale = rng.float(cfg.headlineScale[0], cfg.headlineScale[1]);
+  const grainIntensity = rng.float(cfg.grain[0], cfg.grain[1]);
+  const grainSeed = rng.int(1, 97);
+
+  // Path treatment + base map are part of the roll. Drawn LAST so adding
+  // them didn't reshuffle what earlier seeds resolve to for the older fields.
+  const pathStyle: PathStyle = rng.bool(cfg.umbraProb) ? "umbra" : "centerline";
+  const mapPool = BASE_MAPS.filter((_, i) => cfg.baseMaps[i]);
+  const baseMap: BaseMap = mapPool.length ? rng.pick(mapPool) : "land-110m";
+
   return {
     seed,
     layout: cfg.layout,
+    pathStyle,
+    umbraFill: cfg.umbraFill,
+    umbraStroke: cfg.umbraStroke,
+    baseMap,
     gradient,
     motif,
     crop,
-    headlineScale: rng.float(cfg.headlineScale[0], cfg.headlineScale[1]),
-    grainIntensity: rng.float(cfg.grain[0], cfg.grain[1]),
-    grainSeed: rng.int(1, 97),
+    headlineScale,
+    grainIntensity,
+    grainSeed,
     gradientDir: "bottom",
   };
 }

@@ -49,10 +49,22 @@ function cropCorners(
   };
 }
 
+/** A lon/lat window (degrees), west/south/east/north. */
+export interface GeoWindow {
+  w: number;
+  s: number;
+  e: number;
+  n: number;
+}
+
 export interface FittedProjection {
   projection: GeoProjection;
   pathGen: ReturnType<typeof geoPath>;
   project: (loc: LonLat) => [number, number] | null;
+  /** The crop bounds (plus margin) — lets layers pre-filter geometry.
+   *  Absent when the crop crosses the antimeridian (fitExtent degrades to a
+   *  near-global view there, so no window describes what's visible). */
+  window?: GeoWindow;
 }
 
 export interface FitOptions {
@@ -97,8 +109,24 @@ export function fitProjection(
     ],
     cropCorners(w, s, e, n),
   );
+  // Cull geometry outside the frame at generation time — the SVG clip-path
+  // would hide it anyway, but without this every poster carries path data for
+  // the whole projected world (megabytes with the 1:10m base maps).
+  projection.clipExtent([
+    [0, 0],
+    [width, height],
+  ]);
   const pathGen = geoPath(projection);
   const project = (loc: LonLat): [number, number] | null =>
     projection([loc.lon, loc.lat]) ?? null;
-  return { projection, pathGen, project };
+  // 25% margin so pre-filtering by this window can never cull geometry that
+  // still touches the frame (padding, stroke widths).
+  const win = {
+    w: w - halfLon * 0.5,
+    s: s - halfLat * 0.5,
+    e: e + halfLon * 0.5,
+    n: n + halfLat * 0.5,
+  };
+  const window = win.w >= -180 && win.e <= 180 ? win : undefined;
+  return { projection, pathGen, project, window };
 }
