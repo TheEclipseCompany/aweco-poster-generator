@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "deploy": "flyctl deploy --config ./fly.toml --dockerfile ./Dockerfile"
   },
   "dependencies": {
     "astronomy-engine": "^2.1.19",
