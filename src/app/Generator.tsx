@@ -15,7 +15,7 @@ import { posterHref } from "@/lib/posterLink";
 import { FRAME, type PosterLocation, type Ratio } from "@/poster/types";
 
 const MONO = "var(--font-geist-mono), monospace";
-const RATIOS: Ratio[] = ["3:4", "9:16", "1:1", "ticket", "stamp"];
+const RATIOS: Ratio[] = ["3:4", "din-a", "9:16", "1:1", "ticket", "stamp"];
 const PREVIEW_H = 620;
 
 const label: React.CSSProperties = { fontFamily: MONO, fontSize: 10, letterSpacing: 1.5, color: "#8e8d8d", display: "block", margin: "0 0 6px" };

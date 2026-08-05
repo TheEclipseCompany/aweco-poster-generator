@@ -14,11 +14,11 @@ import { TicketSVG } from "@/poster/TicketSVG";
 import { StampSVG } from "@/poster/StampSVG";
 import { FRAME, type PosterLocation, type Ratio } from "@/poster/types";
 import { BASE_MAPS } from "@/lib/coastline";
-import { decodePoster, posterHref, type PosterPayload } from "@/lib/posterLink";
+import { decodePoster, defaultPayload, posterHref, posterRawHref } from "@/lib/posterLink";
 import { loadSignatureFile, type AudioSignature } from "@/lib/audioSignature";
 
 const MONO = "var(--font-geist-mono), monospace";
-const RATIOS: Ratio[] = ["3:4", "9:16", "1:1", "ticket", "stamp"];
+const RATIOS: Ratio[] = ["3:4", "din-a", "9:16", "1:1", "ticket", "stamp"];
 const CORNERS: readonly Corner[] = ["tl", "tr", "bl", "br"];
 const PREVIEW_H = 760;
 
@@ -70,21 +70,6 @@ function recipeIndexOf(g: GradientSpec): number {
     (r) => r.colors[0] === g.darkColor && r.colors[r.colors.length - 1] === g.lightColor,
   );
   return i < 0 ? 0 : i;
-}
-
-const DEFAULT_SEED = "AWE-2024";
-
-function defaultPayload(): PosterPayload {
-  const eclipseId: EclipseId = "2024-04-08";
-  const e = ECLIPSES[eclipseId];
-  return {
-    seed: DEFAULT_SEED,
-    eclipseId,
-    location: e.defaultLocation,
-    headline: ASPIRATIONS[0],
-    ratio: "3:4",
-    variant: makeVariant(DEFAULT_SEED, e.baseSpanDeg),
-  };
 }
 
 export function PosterStudio({ encoded }: { encoded?: string | null }) {
@@ -244,6 +229,14 @@ export function PosterStudio({ encoded }: { encoded?: string | null }) {
       <div style={{ display: "flex", alignItems: "baseline", gap: 14, marginBottom: 18 }}>
         <Link href="/tune" style={{ ...lbl, color: "#8e8d8d", textDecoration: "none" }}>← BATCH</Link>
         <span style={{ ...lbl, color: "#cfcad6", fontSize: 12, letterSpacing: 1.5 }}>SINGLE POSTER — {seed}</span>
+        <a
+          href={posterRawHref({ seed, eclipseId, location, headline, ratio, variant, markerText: markerText || undefined })}
+          target="_blank"
+          rel="noreferrer"
+          style={{ ...lbl, color: "#8e8d8d", textDecoration: "none", marginLeft: "auto" }}
+        >
+          RAW ↗
+        </a>
       </div>
 
       <div style={{ display: "flex", gap: 28, alignItems: "flex-start" }}>
