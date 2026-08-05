@@ -145,6 +145,10 @@ export function PosterStudio({ encoded }: { encoded?: string | null }) {
   const isTicket = ratio === "ticket";
   const isStamp = ratio === "stamp";
   const previewW = isTicket ? 560 : isStamp ? 300 : Math.round((PREVIEW_H * FRAME[ratio].w) / FRAME[ratio].h);
+  // Cap the preview by the height the viewport leaves for the sticky pane
+  // (top offset + ratio/link row), converted to a width via the frame aspect,
+  // so the poster never pushes the row below the fold.
+  const previewMaxW = `calc((100svh - 96px) * ${(FRAME[ratio].w / FRAME[ratio].h).toFixed(4)})`;
   const audio = audioSig && audioOn ? { signature: audioSig, rayCount, rayLen, roundTips, highContrast: hiContrast } : null;
 
   // ── variant helpers ─────────────────────────────────────────
@@ -235,14 +239,6 @@ export function PosterStudio({ encoded }: { encoded?: string | null }) {
       <div style={{ display: "flex", alignItems: "baseline", gap: 14, marginBottom: 18 }}>
         <Link href="/tune" style={headerLink}>← BATCH</Link>
         <span style={{ ...lbl, color: "#cfcad6", fontSize: 12, letterSpacing: 1.5 }}>SINGLE POSTER — {seed}</span>
-        <a href={posterRawHref(payload)} target="_blank" rel="noreferrer" style={{ ...headerLink, marginLeft: "auto" }}>
-          RAW ↗
-        </a>
-        {origin && (
-          <a href={imagerHref(origin, payload)} target="_blank" rel="noreferrer" style={headerLink}>
-            IMAGER ↗
-          </a>
-        )}
       </div>
 
       <div style={{ display: "flex", gap: 28, alignItems: "flex-start" }}>
@@ -471,7 +467,25 @@ export function PosterStudio({ encoded }: { encoded?: string | null }) {
         </div>
 
         <div style={{ flex: 1, minWidth: 0, position: "sticky", top: 16 }}>
-          <div style={{ width: previewW, maxWidth: "100%" }}>
+          {/* Ratio switcher + export links live ABOVE the poster so they're
+              always on screen — the poster below scales to the leftover
+              viewport height and can never push them out of view. */}
+          <div style={{ display: "flex", gap: 6, marginBottom: 12, alignItems: "center" }}>
+            {RATIOS.map((r) => (
+              <button key={r} onClick={() => setRatio(r)} style={{ fontFamily: MONO, fontSize: 11, padding: "7px 12px", cursor: "pointer", borderRadius: 2, border: "1px solid", borderColor: ratio === r ? "#e2e2e2" : "#2a2d33", background: ratio === r ? "#e2e2e2" : "transparent", color: ratio === r ? "#0e1216" : "#8e8d8d" }}>
+                {r}
+              </button>
+            ))}
+            <a href={posterRawHref(payload)} target="_blank" rel="noreferrer" style={{ ...headerLink, marginLeft: "auto" }}>
+              RAW ↗
+            </a>
+            {origin && (
+              <a href={imagerHref(origin, payload)} target="_blank" rel="noreferrer" style={{ ...headerLink, marginLeft: 8 }}>
+                IMAGER ↗
+              </a>
+            )}
+          </div>
+          <div style={{ width: previewW, maxWidth: `min(100%, ${previewMaxW})` }}>
             {isTicket ? (
               <TicketSVG model={{ eclipse, location, circumstances, aspiration: headline, ratio }} variant={variant} />
             ) : isStamp ? (
@@ -479,13 +493,6 @@ export function PosterStudio({ encoded }: { encoded?: string | null }) {
             ) : (
               <PosterSVG model={{ eclipse, location, circumstances, aspiration: headline, ratio, markerText: markerText || undefined }} variant={variant} audio={audio} />
             )}
-          </div>
-          <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
-            {RATIOS.map((r) => (
-              <button key={r} onClick={() => setRatio(r)} style={{ fontFamily: MONO, fontSize: 11, padding: "7px 12px", cursor: "pointer", borderRadius: 2, border: "1px solid", borderColor: ratio === r ? "#e2e2e2" : "#2a2d33", background: ratio === r ? "#e2e2e2" : "transparent", color: ratio === r ? "#0e1216" : "#8e8d8d" }}>
-                {r}
-              </button>
-            ))}
           </div>
         </div>
       </div>
