@@ -7,6 +7,7 @@ import { useMemo } from "react";
 import type { FeatureCollection, LineString, Polygon } from "geojson";
 import { baseMapSlice, type BaseMap } from "@/lib/coastline";
 import type { FittedProjection, LonLat } from "@/lib/projection";
+import type { MarkerAnchor } from "@/poster/types";
 import type { PathStyle, UmbraFill } from "@/poster/variant";
 
 export interface GeoLayerStyle {
@@ -74,6 +75,18 @@ function offsetLineD(
   return parts.join(" ");
 }
 
+/** Label offsets per anchor — sized to clear the pin's outer ring (r 8). */
+const LABEL_POS: Record<MarkerAnchor, { x: number; y: number; anchor: "start" | "middle" | "end" }> = {
+  e: { x: 10, y: 3.5, anchor: "start" },
+  w: { x: -10, y: 3.5, anchor: "end" },
+  n: { x: 0, y: -13, anchor: "middle" },
+  s: { x: 0, y: 20, anchor: "middle" },
+  ne: { x: 8, y: -9, anchor: "start" },
+  nw: { x: -8, y: -9, anchor: "end" },
+  se: { x: 8, y: 15.5, anchor: "start" },
+  sw: { x: -8, y: 15.5, anchor: "end" },
+};
+
 export const DEFAULT_GEO_STYLE: GeoLayerStyle = {
   coastline: "rgba(0,0,0,0.18)",
   coastlineWidth: 0.5,
@@ -101,6 +114,8 @@ interface GeoLayerProps {
   /** Which Natural Earth geometry the land layer draws. */
   baseMap?: BaseMap;
   location: LonLat & { name?: string };
+  /** Where the label sits around the dot (default "e", to the right). */
+  labelAnchor?: MarkerAnchor;
   clipId: string;
   style?: Partial<GeoLayerStyle>;
 }
@@ -115,6 +130,7 @@ export function GeoLayer({
   bandStroke = true,
   baseMap,
   location,
+  labelAnchor = "e",
   clipId,
   style,
 }: GeoLayerProps) {
@@ -226,8 +242,9 @@ export function GeoLayer({
           <circle r={4.5} fill="none" stroke="#ffffff" strokeWidth={1} opacity={0.9} />
           {location.name && (
             <text
-              x={10}
-              y={3.5}
+              x={LABEL_POS[labelAnchor].x}
+              y={LABEL_POS[labelAnchor].y}
+              textAnchor={LABEL_POS[labelAnchor].anchor}
               fill={s.markerLabel}
               fontFamily={s.labelFamily}
               fontSize={9}

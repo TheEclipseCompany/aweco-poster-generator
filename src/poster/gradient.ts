@@ -52,6 +52,9 @@ export interface GradientSpec {
   mode: "full" | "contained";
   /** Flat frame color (only meaningful when mode === "contained"). */
   frame: string;
+  /** Side of the contained field as a fraction of the poster's short edge
+   *  (absent = 0.74, so older share links render unchanged). */
+  containedScale?: number;
   /** Darkest and lightest stop colors, for downstream legibility logic. */
   darkColor: string;
   lightColor: string;

@@ -7,10 +7,13 @@
 import { useMemo } from "react";
 import { fitProjection } from "@/lib/projection";
 import {
+  formatDateStamp,
   formatDuration,
   formatLocalTime,
   formatObscuration,
-} from "@/lib/astronomy";
+} from "@/lib/format";
+import { createTranslator } from "@/i18n";
+import { DEFAULT_LOCALE } from "@/i18n/locales";
 import { GeoLayer } from "@/poster/layers/GeoLayer";
 import { CircleMotif } from "@/poster/layers/CircleMotif";
 import { AudioCorona } from "@/poster/layers/AudioCorona";
@@ -35,24 +38,23 @@ export interface AudioCoronaOpts {
 
 const MONO = "var(--font-geist-mono), ui-monospace, monospace";
 const DISPLAY = "var(--font-neue-york-narrow), var(--font-neue-york), Georgia, serif";
-const TAGLINE = "A DIVISION OF THE AWE COMPANY OF EARTH";
 
-const fmtDate = (iso: string) => iso.replaceAll("-", ".");
 const isLeft = (c: Corner) => c === "tl" || c === "bl";
 const isTop = (c: Corner) => c === "tl" || c === "tr";
 
-function metaRows(model: PosterModel) {
+function metaRows(model: PosterModel, locale: string) {
+  const t = createTranslator(locale, "poster.meta");
   const { circumstances: c, location: loc, eclipse } = model;
   const place = loc.admin ? `${loc.name}, ${loc.admin}` : loc.name;
   return [
-    { label: "DATE", value: fmtDate(eclipse.date) },
-    { label: "LOCATION", value: place.toUpperCase() },
+    { label: t("date"), value: formatDateStamp(eclipse.date, locale) },
+    { label: t("location"), value: place.toLocaleUpperCase(locale) },
     {
-      label: c.inTotality ? "TOTALITY BEGINS" : "MAXIMUM",
-      value: formatLocalTime(c.inTotality ? c.totalBegin : c.peak, loc.tz),
+      label: c.inTotality ? t("totality-begins") : t("maximum"),
+      value: formatLocalTime(c.inTotality ? c.totalBegin : c.peak, loc.tz, locale),
     },
-    { label: "DURATION", value: formatDuration(c.totalityDurationSec) },
-    { label: "OBSCURATION", value: formatObscuration(c.obscuration) },
+    { label: t("duration"), value: formatDuration(c.totalityDurationSec, locale) },
+    { label: t("obscuration"), value: formatObscuration(c.obscuration, locale) },
   ];
 }
 
@@ -66,6 +68,8 @@ export function PosterSVG({
   audio?: AudioCoronaOpts | null;
 }) {
   const { w: W, h: H } = FRAME[model.ratio];
+  const locale = model.locale ?? DEFAULT_LOCALE;
+  const t = createTranslator(locale, "poster");
   const U = Math.min(W, H);
   const M = Math.round(U * 0.072);
   const g = variant.gradient;
@@ -89,7 +93,7 @@ export function PosterSVG({
   const gradId = `atmo-${uid}`;
   const grainId = `grain-${uid}`;
   const clipId = `frame-${uid}`;
-  const rows = metaRows(model);
+  const rows = metaRows(model, locale);
   const motif = variant.motif;
   const mCx = motif.cxFrac * W;
   const mCy = motif.cyFrac * H;
@@ -109,9 +113,27 @@ export function PosterSVG({
   const aspStyle = hl.editorial ? "italic" : "normal";
   const aspLS = hl.editorial ? 0 : -1;
   const aspFit = hl.editorial ? 0.5 : 0.46;
-  const aspBaseline = H * (hl.vpos === "high" ? 0.3 : 0.88);
+  // Corner furniture sharing the headline's edge band: a free margin lets the
+  // headline sit flush on it; an occupied one pushes it off by the occupant's
+  // height plus a breathing gap (also prevents overlapping a bottom meta stack).
+  const rowH = 23;
+  const badgeS = Math.round(U * 0.048);
+  const clear = Math.round(U * 0.034);
+  // Awe tag + badges sharing a corner stack rather than overlap: the tag takes
+  // the outer slot against the margin, and the badge block sits one tag-height
+  // further in.
+  const tagBlockH = 14;
+  const stackGap = Math.round(U * 0.018);
+  const badgesStackWithTag =
+    L.eclipseLogo.on && L.awe.on && L.eclipseLogo.corner === L.awe.corner;
+  const badgeInset = badgesStackWithTag ? tagBlockH + stackGap : 0;
+  const occAt = (top: boolean) =>
+    Math.max(
+      L.meta.style === "stack" && isTop(L.meta.corner) === top ? rows.length * rowH + clear : 0,
+      L.eclipseLogo.on && isTop(L.eclipseLogo.corner) === top ? badgeInset + badgeS + clear : 0,
+      L.awe.on && isTop(L.awe.corner) === top ? 12 + clear : 0,
+    );
   const hFx = hl.hpos === "left" ? 0.2 : hl.hpos === "center" ? 0.5 : 0.8;
-  const headlineColor = textColorOn(g, hFx, hl.vpos === "high" ? 0.3 : 0.88);
   const aspX = hl.hpos === "left" ? M : hl.hpos === "center" ? W / 2 : W - M;
   const aspAnchor: "start" | "middle" | "end" =
     hl.align === "left" ? "start" : hl.align === "center" ? "middle" : "end";
@@ -119,13 +141,23 @@ export function PosterSVG({
   const aspAvail = W - 2 * M;
   const aspLines = model.aspiration.split("\n");
   const aspMaxLen = Math.max(1, ...aspLines.map((l) => l.length));
-  const aspHeightAvail = Math.max(80, aspBaseline - M);
+  const aspHeightAvail = Math.max(
+    80,
+    hl.vpos === "high" ? H * 0.3 - M : H - 2 * M - occAt(false),
+  );
   const aspSize = Math.min(
     aspMax,
     Math.round(aspAvail / (aspFit * aspMaxLen)),
     Math.round(aspHeightAvail / (aspLines.length * 0.98)),
   );
   const aspLineH = aspSize * 0.98;
+  // Last-line baseline: flush on the bottom margin (low) or the first line's
+  // cap height flush under the top margin (high), offset by any occupant.
+  const aspBaseline =
+    hl.vpos === "high"
+      ? M + occAt(true) + Math.round(aspSize * 0.72) + (aspLines.length - 1) * aspLineH
+      : H - M - occAt(false);
+  const headlineColor = textColorOn(g, hFx, Math.min(0.94, Math.max(0.06, aspBaseline / H)));
   const aspTop = aspBaseline - (aspLines.length - 1) * aspLineH;
   // Vertical spine variant
   const vText = aspLines.join(" ");
@@ -145,17 +177,15 @@ export function PosterSVG({
   const metaColor = cornerColor(mc);
   const metaTextX = mLeft ? M : W - M;
   const metaAnchor = mLeft ? "start" : "end";
-  const rowH = 23;
   const metaStartY = isTop(mc) ? M + 8 : H - M - rows.length * rowH + 8;
 
   // ── Eclipse badge (+ optional Awe Co badge alongside) ──────
   const el = L.eclipseLogo;
   const elColor = cornerColor(el.corner);
-  const badgeS = Math.round(U * 0.048);
   const badgeGap = Math.round(U * 0.016);
   const elRowW = badgeS + (el.aweBadge ? badgeGap + badgeS : 0);
   const elX = isLeft(el.corner) ? M : W - M - elRowW;
-  const elY = isTop(el.corner) ? M : H - M - badgeS;
+  const elY = isTop(el.corner) ? M + badgeInset : H - M - badgeS - badgeInset;
 
   // ── Awe Co brand tag (text only) ───────────────────────────
   const aw = L.awe;
@@ -198,7 +228,7 @@ export function PosterSVG({
         <rect x={0} y={0} width={W} height={H} fill={`url(#${gradId})`} />
       ) : (
         (() => {
-          const side = Math.round(U * 0.74);
+          const side = Math.round(U * (g.containedScale ?? 0.74));
           return (
             <>
               <rect x={0} y={0} width={W} height={H} fill={g.frame} />
@@ -250,6 +280,7 @@ export function PosterSVG({
         bandStroke={variant.umbraStroke}
         baseMap={variant.baseMap}
         location={{ ...model.location, name: model.markerText || model.location.name }}
+        labelAnchor={model.markerAnchor}
         clipId={clipId}
         style={{
           land: "rgba(255,255,255,0.06)",
@@ -327,7 +358,7 @@ export function PosterSVG({
       {/* ── Awe Co brand tag (text only) ─────────────────────── */}
       {aw.on && (
         <text x={tagX} y={tagY} textAnchor={tagAnchor} fill={awColor} opacity={0.82} fontFamily={MONO} fontSize={10.5} letterSpacing={2}>
-          {TAGLINE}
+          {t("tagline")}
         </text>
       )}
     </svg>

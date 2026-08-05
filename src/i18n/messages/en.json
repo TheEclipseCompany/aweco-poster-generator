@@ -1,0 +1,23 @@
+{
+  "poster": {
+    "meta": {
+      "date": "DATE",
+      "location": "LOCATION",
+      "totality-begins": "TOTALITY BEGINS",
+      "maximum": "MAXIMUM",
+      "duration": "DURATION",
+      "obscuration": "OBSCURATION"
+    },
+    "tagline": "A DIVISION OF THE AWE COMPANY OF EARTH"
+  },
+  "ticket": {
+    "eclipse-name": "{year} Total Solar Eclipse",
+    "of-totality": "of totality",
+    "coverage": "coverage",
+    "admit-one": "ADMIT ONE: TOTALITY"
+  },
+  "stamp": {
+    "of-totality": "OF TOTALITY",
+    "coverage": "COVERAGE"
+  }
+}

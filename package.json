@@ -10,7 +10,9 @@
     "deploy": "flyctl deploy --config ./fly.toml --dockerfile ./Dockerfile"
   },
   "dependencies": {
-    "astronomy-engine": "^2.1.19",
+    "@turf/bbox": "^7.4.0",
+    "@turf/boolean-point-in-polygon": "^7.4.0",
+    "@turf/helpers": "^7.4.0",
     "d3-geo": "^3.1.1",
     "geist": "^1.7.2",
     "next": "16.2.9",

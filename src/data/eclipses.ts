@@ -73,6 +73,8 @@ export interface EclipseRecord {
   name: string;
   /** ISO date of greatest eclipse (UTC). */
   date: string;
+  /** Key into the vendored Besselian element sets (web-app slug convention). */
+  elementsKey: string;
   type: "total";
   region: string;
   /** Path-of-totality central line. */
@@ -98,6 +100,7 @@ export const ECLIPSES: Record<EclipseId, EclipseRecord> = {
     id: "2024-04-08",
     name: "Total Solar Eclipse — April 8, 2024",
     date: "2024-04-08",
+    elementsKey: "2024-total",
     type: "total",
     region: "Mexico · United States (Texas to Maine) · Eastern Canada",
     path: centerlineOf(raw2024),
@@ -110,6 +113,7 @@ export const ECLIPSES: Record<EclipseId, EclipseRecord> = {
     id: "2026-08-12",
     name: "Total Solar Eclipse — August 12, 2026",
     date: "2026-08-12",
+    elementsKey: "2026-total",
     type: "total",
     region: "Greenland · Iceland · Spain",
     path: centerlineOf(raw2026),

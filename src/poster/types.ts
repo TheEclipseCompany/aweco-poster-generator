@@ -3,6 +3,9 @@ import type { Circumstances } from "@/lib/astronomy";
 
 export type Ratio = "3:4" | "din-a" | "9:16" | "1:1" | "ticket" | "stamp";
 
+/** Compass position of the marker label around the location dot. */
+export type MarkerAnchor = "e" | "w" | "n" | "s" | "ne" | "nw" | "se" | "sw";
+
 export interface PosterLocation {
   name: string;
   admin?: string;
@@ -22,6 +25,11 @@ export interface PosterModel {
   spanDeg?: number;
   /** Custom text beside the map marker (absent = the location name). */
   markerText?: string;
+  /** Where the marker label sits around the dot (absent = "e", to the right). */
+  markerAnchor?: MarkerAnchor;
+  /** Locale for fixed strings + Intl value formatting (absent = "en").
+   *  Free-text inputs (aspiration, markerText) arrive already localized. */
+  locale?: string;
 }
 
 export const FRAME: Record<Ratio, { w: number; h: number }> = {

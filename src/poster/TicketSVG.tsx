@@ -8,7 +8,14 @@
  */
 import { useMemo } from "react";
 import { fitProjection } from "@/lib/projection";
-import { formatDuration, formatObscuration } from "@/lib/astronomy";
+import {
+  formatDuration,
+  formatLatLngCoordinates,
+  formatLocalTime,
+  formatObscuration,
+} from "@/lib/format";
+import { createTranslator } from "@/i18n";
+import { DEFAULT_LOCALE } from "@/i18n/locales";
 import { CircleMotif } from "@/poster/layers/CircleMotif";
 import { GeoLayer } from "@/poster/layers/GeoLayer";
 import { FRAME, type PosterModel } from "@/poster/types";
@@ -31,23 +38,6 @@ function ticketCode(seed: string): string {
     h = (Math.imul(h ^ (i + 1), 16777619)) >>> 0;
   }
   return `UMBRA-${out}`;
-}
-
-function fmtCoords(lat: number, lon: number): string {
-  const la = `${Math.abs(lat).toFixed(4)}° ${lat >= 0 ? "N" : "S"}`;
-  const lo = `${Math.abs(lon).toFixed(4)}° ${lon >= 0 ? "E" : "W"}`;
-  return `${la}, ${lo}`;
-}
-
-function fmtTime12(d: Date | undefined, tz: string): string {
-  if (!d) return "—";
-  return new Intl.DateTimeFormat("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-    timeZone: tz,
-  }).format(d);
 }
 
 /** Smoothstep easing, clamped to [0,1]. */
@@ -166,13 +156,15 @@ export function TicketSVG({
   );
 
   // ── Copy ────────────────────────────────────────────────────
+  const locale = model.locale ?? DEFAULT_LOCALE;
+  const t = createTranslator(locale, "ticket");
   const M = 52;
   const placeName = loc.admin ? `${loc.name}, ${loc.admin}` : loc.name;
-  const coordLine = `${fmtCoords(loc.lat, loc.lon)}  ·  ${fmtTime12(c.totalBegin ?? c.peak, loc.tz)}`;
-  const eclipseName = `${eclipse.date.slice(0, 4)} Total Solar Eclipse`;
+  const coordLine = `${formatLatLngCoordinates(loc.lat, loc.lon, locale)}  ·  ${formatLocalTime(c.totalBegin ?? c.peak, loc.tz, locale)}`;
+  const eclipseName = t("eclipse-name", { year: eclipse.date.slice(0, 4) });
   const inTot = c.inTotality;
-  const big = inTot ? formatDuration(c.totalityDurationSec) : formatObscuration(c.obscuration);
-  const bigLabel = inTot ? "of totality" : "coverage";
+  const big = inTot ? formatDuration(c.totalityDurationSec, locale) : formatObscuration(c.obscuration, locale);
+  const bigLabel = inTot ? t("of-totality") : t("coverage");
   const code = ticketCode(variant.seed);
   const stubCx = (tearX + W) / 2;
   const sub = "rgba(255,255,255,0.66)";
@@ -309,7 +301,7 @@ export function TicketSVG({
         {code}
       </text>
       <text transform={`translate(${stubCx + 30} ${midY}) rotate(-90)`} textAnchor="middle" fontFamily={MONO} fontSize={9.5} fill="rgba(255,255,255,0.55)" letterSpacing={3}>
-        ADMIT ONE: TOTALITY
+        {t("admit-one")}
       </text>
     </svg>
   );

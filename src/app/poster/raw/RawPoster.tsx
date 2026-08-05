@@ -34,8 +34,8 @@ export function RawPoster({ encoded }: { encoded?: string | null }) {
   const eclipse = ECLIPSES[p.eclipseId];
   const { lat, lon } = p.location;
   const circumstances = useMemo(
-    () => computeCircumstances(eclipse.date, lat, lon),
-    [eclipse.date, lat, lon],
+    () => computeCircumstances(eclipse.elementsKey, lat, lon),
+    [eclipse.elementsKey, lat, lon],
   );
   const model: PosterModel = {
     eclipse,
@@ -44,6 +44,8 @@ export function RawPoster({ encoded }: { encoded?: string | null }) {
     aspiration: p.headline,
     ratio: p.ratio,
     markerText: p.markerText,
+    markerAnchor: p.markerAnchor,
+    locale: p.locale,
   };
   return p.ratio === "ticket" ? (
     <TicketSVG model={model} variant={p.variant} />

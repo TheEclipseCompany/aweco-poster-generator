@@ -77,8 +77,8 @@ export function TuningStudio({ eclipseId, location, aspiration, baseSpanDeg }: P
   const [headline, setHeadline] = useState<string>(aspiration);
 
   const circumstances = useMemo(
-    () => computeCircumstances(ECLIPSES[eclipseId].date, location.lat, location.lon),
-    [eclipseId, location],
+    () => computeCircumstances(ECLIPSES[eclipseId].elementsKey, location.lat, location.lon),
+    [eclipseId, location.lat, location.lon],
   );
   const base: Omit<PosterModel, "ratio"> = {
     eclipse: ECLIPSES[eclipseId], location, circumstances, aspiration: headline,

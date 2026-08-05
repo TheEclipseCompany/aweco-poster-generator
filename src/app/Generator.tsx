@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { computeCircumstances } from "@/lib/astronomy";
 import { ECLIPSES, ECLIPSE_LIST, type EclipseId } from "@/data/eclipses";
-import { searchCities, nearestCityTz, type City } from "@/lib/cities";
+import { getTimeZoneIdForLocation } from "@/lib/timezone";
 import { ASPIRATIONS } from "@/data/copy";
 import { makeVariant } from "@/poster/variant";
 import { randomSeed } from "@/lib/rng";
@@ -24,39 +24,38 @@ const input: React.CSSProperties = { width: "100%", boxSizing: "border-box", fon
 export function Generator() {
   const [eclipseId, setEclipseId] = useState<EclipseId>("2024-04-08");
   const [location, setLocation] = useState<PosterLocation>(ECLIPSES["2024-04-08"].defaultLocation);
-  const [query, setQuery] = useState(ECLIPSES["2024-04-08"].defaultLocation.name);
-  const [open, setOpen] = useState(false);
-  const [manual, setManual] = useState(false);
-  const [mLat, setMLat] = useState("");
-  const [mLon, setMLon] = useState("");
+  const [mLat, setMLat] = useState(String(ECLIPSES["2024-04-08"].defaultLocation.lat));
+  const [mLon, setMLon] = useState(String(ECLIPSES["2024-04-08"].defaultLocation.lon));
+  const [tzBusy, setTzBusy] = useState(false);
   const [headline, setHeadline] = useState<string>(ASPIRATIONS[0]);
   const [ratio, setRatio] = useState<Ratio>("3:4");
   const [seed, setSeed] = useState("AWE-2024");
 
   const eclipse = ECLIPSES[eclipseId];
   const circumstances = useMemo(
-    () => computeCircumstances(eclipse.date, location.lat, location.lon),
-    [eclipse.date, location],
+    () => computeCircumstances(eclipse.elementsKey, location.lat, location.lon),
+    [eclipse.elementsKey, location.lat, location.lon],
   );
   const variant = useMemo(() => makeVariant(seed, eclipse.baseSpanDeg), [seed, eclipse.baseSpanDeg]);
-  const suggestions = useMemo(() => (open ? searchCities(query) : []), [open, query]);
 
   const chooseEclipse = (id: EclipseId) => {
     setEclipseId(id);
     const d = ECLIPSES[id].defaultLocation;
     setLocation(d);
-    setQuery(d.name);
+    setMLat(String(d.lat));
+    setMLon(String(d.lon));
   };
-  const pickCity = (c: City) => {
-    setLocation({ name: c.name, admin: c.admin, lat: c.lat, lon: c.lon, tz: c.tz });
-    setQuery(c.name);
-    setOpen(false);
-  };
-  const applyManual = () => {
+  // Apply typed coordinates: resolve the timezone offline, feed the calc.
+  const applyCoords = async () => {
     const lat = parseFloat(mLat);
     const lon = parseFloat(mLon);
-    if (Number.isFinite(lat) && Number.isFinite(lon)) {
-      setLocation({ name: `${lat.toFixed(2)}, ${lon.toFixed(2)}`, lat, lon, tz: nearestCityTz(lat, lon) });
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+    setTzBusy(true);
+    try {
+      const tz = (await getTimeZoneIdForLocation({ latitude: lat, longitude: lon })) ?? "UTC";
+      setLocation((l) => ({ ...l, lat, lon, tz }));
+    } finally {
+      setTzBusy(false);
     }
   };
 
@@ -76,41 +75,23 @@ export function Generator() {
           </select>
         </div>
 
-        <div style={{ position: "relative" }}>
+        <div>
           <label style={label}>LOCATION</label>
           <input
             style={input}
-            value={query}
-            placeholder="Search a city…"
-            onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
-            onFocus={() => setOpen(true)}
-            onBlur={() => setTimeout(() => setOpen(false), 150)}
+            value={location.name}
+            placeholder="Location name (as displayed, localized)"
+            onChange={(e) => setLocation((l) => ({ ...l, name: e.target.value, admin: undefined }))}
             spellCheck={false}
           />
-          {suggestions.length > 0 && (
-            <ul style={{ listStyle: "none", margin: "4px 0 0", padding: 4, position: "absolute", zIndex: 10, width: "100%", boxSizing: "border-box", background: "#15171c", border: "1px solid #2a2d33", borderRadius: 2, maxHeight: 220, overflowY: "auto" }}>
-              {suggestions.map((c) => (
-                <li key={`${c.name}-${c.lat}`}>
-                  <button
-                    onMouseDown={(e) => { e.preventDefault(); pickCity(c); }}
-                    style={{ width: "100%", textAlign: "left", fontFamily: MONO, fontSize: 12, color: "#e2e2e2", background: "transparent", border: "none", padding: "7px 8px", cursor: "pointer", borderRadius: 2 }}
-                  >
-                    {c.name} <span style={{ color: "#6a6a6a" }}>· {c.admin}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          <button onClick={() => setManual((m) => !m)} style={{ fontFamily: MONO, fontSize: 9.5, color: "#8e8d8d", background: "transparent", border: "none", padding: "6px 0 0", cursor: "pointer" }}>
-            {manual ? "▾ hide manual lat/long" : "▸ enter lat/long manually"}
-          </button>
-          {manual && (
-            <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-              <input style={{ ...input, flex: 1 }} placeholder="lat" value={mLat} onChange={(e) => setMLat(e.target.value)} inputMode="decimal" />
-              <input style={{ ...input, flex: 1 }} placeholder="long" value={mLon} onChange={(e) => setMLon(e.target.value)} inputMode="decimal" />
-              <button onClick={applyManual} style={{ fontFamily: MONO, fontSize: 11, color: "#0e1216", background: "#e2e2e2", border: "none", borderRadius: 2, padding: "0 12px", cursor: "pointer" }}>SET</button>
-            </div>
-          )}
+          <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+            <input style={{ ...input, flex: 1 }} placeholder="lat" value={mLat} onChange={(e) => setMLat(e.target.value)} inputMode="decimal" />
+            <input style={{ ...input, flex: 1 }} placeholder="long" value={mLon} onChange={(e) => setMLon(e.target.value)} inputMode="decimal" />
+            <button onClick={applyCoords} disabled={tzBusy} style={{ fontFamily: MONO, fontSize: 11, color: "#0e1216", background: "#e2e2e2", border: "none", borderRadius: 2, padding: "0 12px", cursor: tzBusy ? "wait" : "pointer" }}>
+              {tzBusy ? "…" : "SET"}
+            </button>
+          </div>
+          <p style={{ fontFamily: MONO, fontSize: 9.5, color: "#8e8d8d", margin: "6px 0 0" }}>tz {location.tz}</p>
           {!circumstances.visible && (
             <p style={{ fontFamily: MONO, fontSize: 10, color: "#d8915a", margin: "8px 0 0" }}>
               Not visible from here — pick a spot on the path of totality.

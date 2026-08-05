@@ -8,7 +8,7 @@
 import { ECLIPSES, type EclipseId } from "@/data/eclipses";
 import { ASPIRATIONS } from "@/data/copy";
 import { makeVariant, type PosterVariant } from "@/poster/variant";
-import { FRAME, PRINT_WIDTH_IN, type PosterLocation, type Ratio } from "@/poster/types";
+import { FRAME, PRINT_WIDTH_IN, type MarkerAnchor, type PosterLocation, type Ratio } from "@/poster/types";
 
 export interface PosterPayload {
   seed: string;
@@ -19,6 +19,10 @@ export interface PosterPayload {
   variant: PosterVariant;
   /** Custom text beside the map marker (absent = the location name). */
   markerText?: string;
+  /** Where the marker label sits around the dot (absent = "e", to the right). */
+  markerAnchor?: MarkerAnchor;
+  /** Locale for fixed strings + Intl value formatting (absent = "en"). */
+  locale?: string;
 }
 
 export function encodePoster(p: PosterPayload): string {

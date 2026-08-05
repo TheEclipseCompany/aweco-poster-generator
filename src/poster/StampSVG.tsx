@@ -6,7 +6,9 @@
  */
 import { useMemo } from "react";
 import { fitProjection } from "@/lib/projection";
-import { formatDuration, formatObscuration } from "@/lib/astronomy";
+import { formatDuration, formatObscuration } from "@/lib/format";
+import { createTranslator } from "@/i18n";
+import { DEFAULT_LOCALE } from "@/i18n/locales";
 import { GeoLayer } from "@/poster/layers/GeoLayer";
 import { FRAME, type PosterModel } from "@/poster/types";
 import type { PosterVariant } from "@/poster/variant";
@@ -71,10 +73,12 @@ export function StampSVG({
     [eclipsePath, lat, lon, W, H, spanDeg, offsetLat, offsetLon],
   );
 
-  const placeName = (loc.admin ? `${loc.name}, ${loc.admin}` : loc.name).toUpperCase();
+  const locale = model.locale ?? DEFAULT_LOCALE;
+  const t = createTranslator(locale, "stamp");
+  const placeName = (loc.admin ? `${loc.name}, ${loc.admin}` : loc.name).toLocaleUpperCase(locale);
   const inTot = c.inTotality;
-  const big = inTot ? formatDuration(c.totalityDurationSec) : formatObscuration(c.obscuration);
-  const bigLabel = inTot ? "OF TOTALITY" : "COVERAGE";
+  const big = inTot ? formatDuration(c.totalityDurationSec, locale) : formatObscuration(c.obscuration, locale);
+  const bigLabel = inTot ? t("of-totality") : t("coverage");
 
   return (
     <svg

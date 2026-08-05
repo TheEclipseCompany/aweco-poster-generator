@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { computeCircumstances } from "@/lib/astronomy";
 import { ECLIPSES, ECLIPSE_LIST, type EclipseId } from "@/data/eclipses";
-import { searchCities, nearestCityTz, type City } from "@/lib/cities";
+import { getTimeZoneIdForLocation } from "@/lib/timezone";
 import { ASPIRATIONS } from "@/data/copy";
 import { makeVariant, BLEND_MODES, DEFAULT_TUNE, DEFAULT_UMBRA_FILL, type BlendMode, type PosterVariant, type Corner, type LayoutConfig, type UmbraFill } from "@/poster/variant";
 import { makeGradient, RECIPES, type GradientSpec } from "@/poster/gradient";
@@ -12,14 +12,16 @@ import { makeRng, randomSeed } from "@/lib/rng";
 import { PosterSVG } from "@/poster/PosterSVG";
 import { TicketSVG } from "@/poster/TicketSVG";
 import { StampSVG } from "@/poster/StampSVG";
-import { FRAME, type PosterLocation, type Ratio } from "@/poster/types";
+import { FRAME, type MarkerAnchor, type PosterLocation, type Ratio } from "@/poster/types";
 import { BASE_MAPS } from "@/lib/coastline";
 import { decodePoster, defaultPayload, imagerHref, posterHref, posterRawHref } from "@/lib/posterLink";
+import { DEFAULT_LOCALE, locales } from "@/i18n/locales";
 import { loadSignatureFile, type AudioSignature } from "@/lib/audioSignature";
 
 const MONO = "var(--font-geist-mono), monospace";
 const RATIOS: Ratio[] = ["3:4", "din-a", "9:16", "1:1", "ticket", "stamp"];
 const CORNERS: readonly Corner[] = ["tl", "tr", "bl", "br"];
+const ANCHORS: readonly MarkerAnchor[] = ["e", "w", "n", "s", "ne", "nw", "se", "sw"];
 const PREVIEW_H = 760;
 
 const lbl: React.CSSProperties = { fontFamily: MONO, fontSize: 10, color: "#8e8d8d", letterSpacing: 0.5 };
@@ -77,18 +79,19 @@ export function PosterStudio({ encoded }: { encoded?: string | null }) {
 
   const [eclipseId, setEclipseId] = useState<EclipseId>(init.eclipseId);
   const [location, setLocation] = useState<PosterLocation>(init.location);
-  const [query, setQuery] = useState(init.location.name);
-  const [open, setOpen] = useState(false);
-  const [mLat, setMLat] = useState("");
-  const [mLon, setMLon] = useState("");
+  const [mLat, setMLat] = useState(String(init.location.lat));
+  const [mLon, setMLon] = useState(String(init.location.lon));
+  const [tzBusy, setTzBusy] = useState(false);
   const [headline, setHeadline] = useState(init.headline);
   const [markerText, setMarkerText] = useState(init.markerText ?? "");
+  const [markerAnchor, setMarkerAnchor] = useState<MarkerAnchor>(init.markerAnchor ?? "e");
   const [ratio, setRatio] = useState<Ratio>(init.ratio);
   const [seed, setSeed] = useState(init.seed);
   const [variant, setVariant] = useState<PosterVariant>(init.variant);
   // Deployment origin for absolute links (imager) — set post-mount, empty in SSR.
   const [origin, setOrigin] = useState("");
   useEffect(() => setOrigin(window.location.origin), []);
+  const [locale, setLocale] = useState<string>(init.locale ?? DEFAULT_LOCALE);
   // Separate seed for gradient re-rolls so other dials stay untouched.
   const [gradSeed, setGradSeed] = useState(init.seed);
 
@@ -128,19 +131,18 @@ export function PosterStudio({ encoded }: { encoded?: string | null }) {
       window.history.replaceState(
         null,
         "",
-        posterHref({ seed, eclipseId, location, headline, ratio, variant, markerText: markerText || undefined }),
+        posterHref({ seed, eclipseId, location, headline, ratio, variant, markerText: markerText || undefined, markerAnchor, locale }),
       );
     }, 300);
     return () => clearTimeout(t);
-  }, [seed, eclipseId, location, headline, ratio, variant, markerText]);
+  }, [seed, eclipseId, location, headline, ratio, variant, markerText, markerAnchor, locale]);
 
   const eclipse = ECLIPSES[eclipseId];
   const base = eclipse.baseSpanDeg;
   const circumstances = useMemo(
-    () => computeCircumstances(eclipse.date, location.lat, location.lon),
-    [eclipse.date, location],
+    () => computeCircumstances(eclipse.elementsKey, location.lat, location.lon),
+    [eclipse.elementsKey, location.lat, location.lon],
   );
-  const suggestions = useMemo(() => (open ? searchCities(query) : []), [open, query]);
 
   const isTicket = ratio === "ticket";
   const isStamp = ratio === "stamp";
@@ -190,26 +192,37 @@ export function PosterStudio({ encoded }: { encoded?: string | null }) {
   const recipeIdx = recipeIndexOf(variant.gradient);
   const contained = variant.gradient.mode === "contained";
   const regenGradient = (idx: number, isContained: boolean, gs: string) =>
-    setVariant((v) => ({ ...v, gradient: makeGradient(makeRng(gs), { recipes: [RECIPES[idx]], containedProb: isContained ? 1 : 0 }) }));
+    setVariant((v) => ({
+      ...v,
+      // Re-rolls swap the gradient wholesale; the authored field size rides along.
+      gradient: {
+        ...makeGradient(makeRng(gs), { recipes: [RECIPES[idx]], containedProb: isContained ? 1 : 0 }),
+        containedScale: v.gradient.containedScale,
+      },
+    }));
 
   const chooseEclipse = (id: EclipseId) => {
     setEclipseId(id);
     const d = ECLIPSES[id].defaultLocation;
     setLocation(d);
-    setQuery(d.name);
+    setMLat(String(d.lat));
+    setMLon(String(d.lon));
     // Reset the crop to the new eclipse's natural framing.
     setCrop({ spanDeg: ECLIPSES[id].baseSpanDeg, offsetLat: 0, offsetLon: 0 });
   };
-  const pickCity = (city: City) => {
-    setLocation({ name: city.name, admin: city.admin, lat: city.lat, lon: city.lon, tz: city.tz });
-    setQuery(city.name);
-    setOpen(false);
-  };
-  const applyManual = () => {
+  // Apply typed coordinates: resolve the timezone offline (point-in-polygon
+  // over the bundled world tz set, same approach as the-eclipse-app-web),
+  // then feed the eclipse calculation.
+  const applyCoords = async () => {
     const lat = parseFloat(mLat);
     const lon = parseFloat(mLon);
-    if (Number.isFinite(lat) && Number.isFinite(lon)) {
-      setLocation({ name: `${lat.toFixed(2)}, ${lon.toFixed(2)}`, lat, lon, tz: nearestCityTz(lat, lon) });
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+    setTzBusy(true);
+    try {
+      const tz = (await getTimeZoneIdForLocation({ latitude: lat, longitude: lon })) ?? "UTC";
+      setLocation((l) => ({ ...l, lat, lon, tz }));
+    } finally {
+      setTzBusy(false);
     }
   };
   const regenerateAll = () => {
@@ -231,7 +244,7 @@ export function PosterStudio({ encoded }: { encoded?: string | null }) {
   const panel: React.CSSProperties = { background: "#15171c", border: "1px solid #2a2d33", borderRadius: 4, padding: 14 };
   const h: React.CSSProperties = { ...lbl, color: "#cfcad6", fontSize: 11, letterSpacing: 1.5, margin: "0 0 8px" };
 
-  const payload = { seed, eclipseId, location, headline, ratio, variant, markerText: markerText || undefined };
+  const payload = { seed, eclipseId, location, headline, ratio, variant, markerText: markerText || undefined, markerAnchor, locale };
   const headerLink: React.CSSProperties = { ...lbl, color: "#8e8d8d", textDecoration: "none" };
 
   return (
@@ -250,33 +263,23 @@ export function PosterStudio({ encoded }: { encoded?: string | null }) {
                 <option key={e.id} value={e.id} style={{ color: "#000" }}>{e.name}</option>
               ))}
             </select>
-            <div style={{ position: "relative", marginTop: 8 }}>
+            <div style={{ marginTop: 8 }}>
+              <span style={{ ...lbl, display: "block", marginBottom: 3 }}>location name (as displayed, localized)</span>
               <input
                 style={input}
-                value={query}
-                placeholder="Search a city…"
-                onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
-                onFocus={() => setOpen(true)}
-                onBlur={() => setTimeout(() => setOpen(false), 150)}
+                value={location.name}
+                onChange={(e) => setLocation((l) => ({ ...l, name: e.target.value, admin: undefined }))}
                 spellCheck={false}
               />
-              {suggestions.length > 0 && (
-                <ul style={{ listStyle: "none", margin: "4px 0 0", padding: 4, position: "absolute", zIndex: 10, width: "100%", boxSizing: "border-box", background: "#15171c", border: "1px solid #2a2d33", borderRadius: 2, maxHeight: 200, overflowY: "auto" }}>
-                  {suggestions.map((city) => (
-                    <li key={`${city.name}-${city.lat}`}>
-                      <button onMouseDown={(e) => { e.preventDefault(); pickCity(city); }} style={{ width: "100%", textAlign: "left", fontFamily: MONO, fontSize: 12, color: "#e2e2e2", background: "transparent", border: "none", padding: "6px 8px", cursor: "pointer", borderRadius: 2 }}>
-                        {city.name} <span style={{ color: "#6a6a6a" }}>· {city.admin}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
             </div>
             <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
               <input style={{ ...input, flex: 1, fontSize: 11 }} placeholder="lat" value={mLat} onChange={(e) => setMLat(e.target.value)} inputMode="decimal" />
               <input style={{ ...input, flex: 1, fontSize: 11 }} placeholder="long" value={mLon} onChange={(e) => setMLon(e.target.value)} inputMode="decimal" />
-              <button onClick={applyManual} style={{ fontFamily: MONO, fontSize: 11, color: "#0e1216", background: "#e2e2e2", border: "none", borderRadius: 2, padding: "0 12px", cursor: "pointer" }}>SET</button>
+              <button onClick={applyCoords} disabled={tzBusy} style={{ fontFamily: MONO, fontSize: 11, color: "#0e1216", background: "#e2e2e2", border: "none", borderRadius: 2, padding: "0 12px", cursor: tzBusy ? "wait" : "pointer" }}>
+                {tzBusy ? "…" : "SET"}
+              </button>
             </div>
+            <p style={{ ...lbl, margin: "6px 0 0" }}>tz {location.tz}</p>
             <div style={{ marginTop: 6 }}>
               <span style={{ ...lbl, display: "block", marginBottom: 3 }}>marker label</span>
               <input
@@ -286,6 +289,17 @@ export function PosterStudio({ encoded }: { encoded?: string | null }) {
                 onChange={(e) => setMarkerText(e.target.value)}
                 spellCheck={false}
               />
+            </div>
+            <div style={{ marginTop: 6 }}>
+              <Seg label="label at" value={markerAnchor} options={ANCHORS} onChange={setMarkerAnchor} />
+            </div>
+            <div style={{ marginTop: 6 }}>
+              <span style={{ ...lbl, display: "block", marginBottom: 3 }}>language</span>
+              <select style={{ ...input, fontSize: 11 }} value={locale} onChange={(e) => setLocale(e.target.value)}>
+                {Object.entries(locales).map(([code, name]) => (
+                  <option key={code} value={code} style={{ color: "#000" }}>{name}</option>
+                ))}
+              </select>
             </div>
             {!circumstances.visible && (
               <p style={{ fontFamily: MONO, fontSize: 10, color: "#d8915a", margin: "8px 0 0" }}>Not on the path of totality from here.</p>
@@ -374,6 +388,11 @@ export function PosterStudio({ encoded }: { encoded?: string | null }) {
               {!isTicket && <Check on={contained} label="contained" onToggle={() => regenGradient(recipeIdx, !contained, gradSeed)} />}
               <button onClick={() => { const gs = randomSeed(); setGradSeed(gs); regenGradient(recipeIdx, contained, gs); }} style={{ fontFamily: MONO, fontSize: 9.5, color: "#8e8d8d", background: "transparent", border: "1px solid #2a2d33", borderRadius: 2, padding: "4px 8px", cursor: "pointer" }}>re-roll ↻</button>
             </div>
+            {contained && !isTicket && (
+              <div style={{ marginTop: 8 }}>
+                <Range label="field size" min={0.3} max={1} step={0.01} value={variant.gradient.containedScale ?? 0.74} onChange={(n) => setVariant((v) => ({ ...v, gradient: { ...v.gradient, containedScale: n } }))} />
+              </div>
+            )}
             {isTicket && (
               <div style={{ marginTop: 8 }}>
                 <Seg label="direction" value={variant.gradientDir ?? "bottom"} options={["bottom", "top", "left", "right"] as const} onChange={(d) => setVariant((v) => ({ ...v, gradientDir: d }))} />
@@ -487,11 +506,11 @@ export function PosterStudio({ encoded }: { encoded?: string | null }) {
           </div>
           <div style={{ width: previewW, maxWidth: `min(100%, ${previewMaxW})` }}>
             {isTicket ? (
-              <TicketSVG model={{ eclipse, location, circumstances, aspiration: headline, ratio }} variant={variant} />
+              <TicketSVG model={{ eclipse, location, circumstances, aspiration: headline, ratio, locale }} variant={variant} />
             ) : isStamp ? (
-              <StampSVG model={{ eclipse, location, circumstances, aspiration: headline, ratio }} variant={variant} />
+              <StampSVG model={{ eclipse, location, circumstances, aspiration: headline, ratio, locale }} variant={variant} />
             ) : (
-              <PosterSVG model={{ eclipse, location, circumstances, aspiration: headline, ratio, markerText: markerText || undefined }} variant={variant} audio={audio} />
+              <PosterSVG model={{ eclipse, location, circumstances, aspiration: headline, ratio, markerText: markerText || undefined, markerAnchor, locale }} variant={variant} audio={audio} />
             )}
           </div>
         </div>
