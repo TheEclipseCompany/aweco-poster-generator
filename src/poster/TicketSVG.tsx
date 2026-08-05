@@ -261,7 +261,9 @@ export function TicketSVG({
 
       {/* Grain + legibility veil */}
       <g clipPath={`url(#${clipId})`}>
-        <rect x={0} y={0} width={W} height={H} filter={`url(#${grainId})`} opacity={variant.grainIntensity * 0.7} style={{ mixBlendMode: "overlay" }} />
+        {(variant.grainOn ?? true) && (
+          <rect x={0} y={0} width={W} height={H} filter={`url(#${grainId})`} opacity={variant.grainIntensity * 0.7} style={{ mixBlendMode: "overlay" }} />
+        )}
         <rect x={0} y={0} width={W} height={H} fill={`url(#${scrimId})`} />
       </g>
 

@@ -136,7 +136,9 @@ export function StampSVG({
             labelFamily: MONO,
           }}
         />
-        <rect x={0} y={0} width={W} height={H} filter={`url(#${grainId})`} opacity={variant.grainIntensity * 0.55} style={{ mixBlendMode: "overlay" }} />
+        {(variant.grainOn ?? true) && (
+          <rect x={0} y={0} width={W} height={H} filter={`url(#${grainId})`} opacity={variant.grainIntensity * 0.55} style={{ mixBlendMode: "overlay" }} />
+        )}
         <rect x={0} y={0} width={W} height={H} fill={`url(#${vignId})`} />
       </g>
 

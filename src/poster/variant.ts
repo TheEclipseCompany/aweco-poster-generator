@@ -115,6 +115,10 @@ export interface PosterVariant {
   headlineScale: number;
   /** Overlay-pass opacity for grain (tasteful band, never below tactile). */
   grainIntensity: number;
+  /** Grain kill-switch — false skips the noise passes entirely, which also
+   *  keeps print-resolution captures far smaller (absent = on, so older
+   *  share links keep decoding). */
+  grainOn?: boolean;
   /** feTurbulence seed so the grain field itself varies per poster. */
   grainSeed: number;
   /** Ticket-only: which edge the partial gradient comes in from. */

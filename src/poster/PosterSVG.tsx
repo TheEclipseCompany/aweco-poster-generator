@@ -264,8 +264,12 @@ export function PosterSVG({
       />
 
       {/* Grain */}
-      <rect x={0} y={0} width={W} height={H} filter={`url(#${grainId})`} opacity={variant.grainIntensity} style={{ mixBlendMode: "overlay" }} />
-      <rect x={0} y={0} width={W} height={H} filter={`url(#${grainId})`} opacity={variant.grainIntensity * 0.6} style={{ mixBlendMode: "soft-light" }} />
+      {(variant.grainOn ?? true) && (
+        <>
+          <rect x={0} y={0} width={W} height={H} filter={`url(#${grainId})`} opacity={variant.grainIntensity} style={{ mixBlendMode: "overlay" }} />
+          <rect x={0} y={0} width={W} height={H} filter={`url(#${grainId})`} opacity={variant.grainIntensity * 0.6} style={{ mixBlendMode: "soft-light" }} />
+        </>
+      )}
 
       {/* ── Headline ─────────────────────────────────────────── */}
       {hl.axis === "vertical" ? (

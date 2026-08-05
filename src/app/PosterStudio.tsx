@@ -421,6 +421,7 @@ export function PosterStudio({ encoded }: { encoded?: string | null }) {
             <Range label="grain" min={0.3} max={0.9} step={0.01} value={variant.grainIntensity} onChange={(n) => setVariant((v) => ({ ...v, grainIntensity: n }))} />
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
               <span style={{ ...lbl, width: 96 }}>grain field</span>
+              <Check on={variant.grainOn ?? true} label="on" onToggle={() => setVariant((v) => ({ ...v, grainOn: !(v.grainOn ?? true) }))} />
               <button onClick={() => setVariant((v) => ({ ...v, grainSeed: ((v.grainSeed + 7) % 97) + 1 }))} style={{ fontFamily: MONO, fontSize: 9.5, color: "#8e8d8d", background: "transparent", border: "1px solid #2a2d33", borderRadius: 2, padding: "4px 8px", cursor: "pointer" }}>re-roll ↻</button>
             </div>
           </div>
