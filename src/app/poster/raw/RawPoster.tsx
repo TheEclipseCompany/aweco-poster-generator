@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { computeCircumstances } from "@/lib/astronomy";
 import { ECLIPSES } from "@/data/eclipses";
 import { decodePoster, defaultPayload } from "@/lib/posterLink";
@@ -16,6 +16,21 @@ import type { PosterModel } from "@/poster/types";
  */
 export function RawPoster({ encoded }: { encoded?: string | null }) {
   const p = useMemo(() => decodePoster(encoded) ?? defaultPayload(), [encoded]);
+
+  // Screenshot-readiness beacon for the image server: the poster is in the
+  // DOM (this effect runs after commit) and the display/mono webfonts have
+  // loaded — before that, a capture would show fallback type.
+  useEffect(() => {
+    let active = true;
+    document.fonts.ready.then(() => {
+      if (active) document.body.classList.add("page-is-ready-for-screenshot");
+    });
+    return () => {
+      active = false;
+      document.body.classList.remove("page-is-ready-for-screenshot");
+    };
+  }, [p]);
+
   const eclipse = ECLIPSES[p.eclipseId];
   const { lat, lon } = p.location;
   const circumstances = useMemo(
