@@ -35,3 +35,16 @@ export const FRAME: Record<Ratio, { w: number; h: number }> = {
   // Small square commemorative stamp / badge.
   stamp: { w: 520, h: 520 },
 };
+
+/**
+ * Intended print width per ratio, in inches — 300-DPI exports derive their
+ * pixel size from this (height follows from the FRAME proportions).
+ */
+export const PRINT_WIDTH_IN: Record<Ratio, number> = {
+  "3:4": 18, // 18×24″ poster
+  "din-a": 420 / 25.4, // A2 (420×594 mm); same ratio rescales to any A size
+  "9:16": 13.5, // 13.5×24″ poster
+  "1:1": 12, // 12×12″ square print
+  ticket: 9, // 9×5″ keepsake
+  stamp: 4, // 4×4″
+};

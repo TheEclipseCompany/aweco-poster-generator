@@ -14,7 +14,7 @@ import { TicketSVG } from "@/poster/TicketSVG";
 import { StampSVG } from "@/poster/StampSVG";
 import { FRAME, type PosterLocation, type Ratio } from "@/poster/types";
 import { BASE_MAPS } from "@/lib/coastline";
-import { decodePoster, defaultPayload, posterHref, posterRawHref } from "@/lib/posterLink";
+import { decodePoster, defaultPayload, imagerHref, posterHref, posterRawHref } from "@/lib/posterLink";
 import { loadSignatureFile, type AudioSignature } from "@/lib/audioSignature";
 
 const MONO = "var(--font-geist-mono), monospace";
@@ -86,6 +86,9 @@ export function PosterStudio({ encoded }: { encoded?: string | null }) {
   const [ratio, setRatio] = useState<Ratio>(init.ratio);
   const [seed, setSeed] = useState(init.seed);
   const [variant, setVariant] = useState<PosterVariant>(init.variant);
+  // Deployment origin for absolute links (imager) — set post-mount, empty in SSR.
+  const [origin, setOrigin] = useState("");
+  useEffect(() => setOrigin(window.location.origin), []);
   // Separate seed for gradient re-rolls so other dials stay untouched.
   const [gradSeed, setGradSeed] = useState(init.seed);
 
@@ -224,19 +227,22 @@ export function PosterStudio({ encoded }: { encoded?: string | null }) {
   const panel: React.CSSProperties = { background: "#15171c", border: "1px solid #2a2d33", borderRadius: 4, padding: 14 };
   const h: React.CSSProperties = { ...lbl, color: "#cfcad6", fontSize: 11, letterSpacing: 1.5, margin: "0 0 8px" };
 
+  const payload = { seed, eclipseId, location, headline, ratio, variant, markerText: markerText || undefined };
+  const headerLink: React.CSSProperties = { ...lbl, color: "#8e8d8d", textDecoration: "none" };
+
   return (
     <div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 14, marginBottom: 18 }}>
-        <Link href="/tune" style={{ ...lbl, color: "#8e8d8d", textDecoration: "none" }}>← BATCH</Link>
+        <Link href="/tune" style={headerLink}>← BATCH</Link>
         <span style={{ ...lbl, color: "#cfcad6", fontSize: 12, letterSpacing: 1.5 }}>SINGLE POSTER — {seed}</span>
-        <a
-          href={posterRawHref({ seed, eclipseId, location, headline, ratio, variant, markerText: markerText || undefined })}
-          target="_blank"
-          rel="noreferrer"
-          style={{ ...lbl, color: "#8e8d8d", textDecoration: "none", marginLeft: "auto" }}
-        >
+        <a href={posterRawHref(payload)} target="_blank" rel="noreferrer" style={{ ...headerLink, marginLeft: "auto" }}>
           RAW ↗
         </a>
+        {origin && (
+          <a href={imagerHref(origin, payload)} target="_blank" rel="noreferrer" style={headerLink}>
+            IMAGER ↗
+          </a>
+        )}
       </div>
 
       <div style={{ display: "flex", gap: 28, alignItems: "flex-start" }}>

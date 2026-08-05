@@ -8,7 +8,7 @@
 import { ECLIPSES, type EclipseId } from "@/data/eclipses";
 import { ASPIRATIONS } from "@/data/copy";
 import { makeVariant, type PosterVariant } from "@/poster/variant";
-import type { PosterLocation, Ratio } from "@/poster/types";
+import { FRAME, PRINT_WIDTH_IN, type PosterLocation, type Ratio } from "@/poster/types";
 
 export interface PosterPayload {
   seed: string;
@@ -41,6 +41,23 @@ export function posterHref(p: PosterPayload): string {
 /** Chrome-free render of the same payload — just the poster, edge to edge. */
 export function posterRawHref(p: PosterPayload): string {
   return `/poster/raw?p=${encodePoster(p)}`;
+}
+
+const IMAGER = "https://image.theeclipse.store/";
+const DPI = 300;
+
+/**
+ * Screenshot-service URL that captures the raw render at print resolution:
+ * width from the ratio's intended print size at 300 DPI, height derived from
+ * the exact frame proportions so the viewport matches the SVG edge to edge.
+ * Needs the deployment origin (the imager must be able to reach the URL).
+ */
+export function imagerHref(origin: string, p: PosterPayload): string {
+  const { w, h } = FRAME[p.ratio];
+  const width = Math.round(PRINT_WIDTH_IN[p.ratio] * DPI);
+  const height = Math.round((width * h) / w);
+  const url = encodeURIComponent(`${origin}${posterRawHref(p)}`);
+  return `${IMAGER}?url=${url}&width=${width}&height=${height}`;
 }
 
 const DEFAULT_SEED = "AWE-2024";
