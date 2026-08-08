@@ -18,13 +18,17 @@ swap_size_mb = 512
   force_https = true
   auto_stop_machines = 'stop'
   auto_start_machines = true
-  min_machines_running = 0
+  # Keep one machine hot: the imager hits the raw render route on demand and
+  # a cold boot (image pull + on-boot prerender) costs ~25 s. The second
+  # machine still scales to zero and wakes for overflow.
+  min_machines_running = 1
   processes = ['app']
 
 # Sized for this app: ~13 MB of GeoJSON/TopoJSON parsed into memory at load,
-# plus Next SSR and the on-boot prerender workers. 256 MB OOMs immediately;
-# 2 GB + 2 shared CPUs holds the startup spike comfortably.
+# plus Next SSR and the on-boot prerender workers. 256 MB OOMs immediately.
+# 4 shared CPUs / 4 GB so several studio sessions + imager render calls can
+# SSR the megabyte-scale poster SVGs concurrently without queueing.
 [[vm]]
-  memory = '2gb'
+  memory = '4gb'
   cpu_kind = 'shared'
-  cpus = 2
+  cpus = 4
