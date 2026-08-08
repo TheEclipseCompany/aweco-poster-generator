@@ -56,7 +56,14 @@ export function RawPoster({ encoded }: { encoded?: string | null }) {
     if (!audioReady) return;
     let active = true;
     document.fonts.ready.then(() => {
-      if (active) document.body.classList.add("page-is-ready-for-screenshot");
+      if (!active) return;
+      document.body.classList.add("page-is-ready-for-screenshot");
+      // When embedded in the store /frame iframe, notify the parent.
+      try {
+        window.parent?.postMessage("page-is-ready-for-screenshot", "*");
+      } catch {
+        /* ignore */
+      }
     });
     return () => {
       active = false;
