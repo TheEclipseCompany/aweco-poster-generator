@@ -10,6 +10,17 @@ import { ASPIRATIONS } from "@/data/copy";
 import { makeVariant, type PosterVariant } from "@/poster/variant";
 import { FRAME, PRINT_WIDTH_IN, type MarkerAnchor, type PosterLocation, type Ratio } from "@/poster/types";
 
+/** Audio corona options carried in the share/raw URL (signature fetched from sigUrl). */
+export interface PosterAudioOpts {
+  /** Public URL of an audio-signature JSON ({ rms[], peak[] }). */
+  sigUrl: string;
+  on: boolean;
+  rays: number;
+  spikeLen: number;
+  roundTips: boolean;
+  hiContrast: boolean;
+}
+
 export interface PosterPayload {
   seed: string;
   eclipseId: EclipseId;
@@ -23,6 +34,8 @@ export interface PosterPayload {
   markerAnchor?: MarkerAnchor;
   /** Locale for fixed strings + Intl value formatting (absent = "en"). */
   locale?: string;
+  /** Optional audio corona (fetched at render time from sigUrl). */
+  audio?: PosterAudioOpts;
 }
 
 export function encodePoster(p: PosterPayload): string {
