@@ -14,8 +14,8 @@ export type Corner = "tl" | "tr" | "bl" | "br";
 export type HAlign = "left" | "center" | "right";
 export type VPos = "high" | "low";
 export type MotifKind = "none" | "disc" | "ring" | "phases";
-/** Which path-of-totality geometry the map draws. */
-export type PathStyle = "centerline" | "umbra";
+/** Which path-of-totality geometry the map draws ("none" hides the path). */
+export type PathStyle = "centerline" | "umbra" | "none";
 
 /** How the umbra wash composites against the poster beneath it. */
 export const BLEND_MODES = [

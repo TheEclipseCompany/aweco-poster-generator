@@ -105,7 +105,7 @@ interface GeoLayerProps {
   /** The band as a fillable polygon, for the optional umbra wash. */
   band?: FeatureCollection<Polygon>;
   /** Which geometry the main line draws — falls back to the centre line
-   *  when the eclipse has no umbra outline. */
+   *  when the eclipse has no umbra outline; "none" hides the path entirely. */
   mode?: PathStyle;
   /** Optional wash filling the band (umbra mode only). */
   bandFill?: UmbraFill;
@@ -135,8 +135,9 @@ export function GeoLayer({
   style,
 }: GeoLayerProps) {
   const s = { ...DEFAULT_GEO_STYLE, ...style };
+  const pathOn = mode !== "none";
   const umbraMode = mode === "umbra" && !!limits;
-  const lineOn = !umbraMode || bandStroke;
+  const lineOn = pathOn && (!umbraMode || bandStroke);
   // geoPath emits full-precision floats whose last digit can differ between the
   // SSR (Node) and client renders — round them so the strings match and React
   // doesn't report a hydration mismatch. All geometry is memoized on the fit
@@ -184,7 +185,7 @@ export function GeoLayer({
         strokeWidth={s.coastlineWidth}
         strokeLinejoin="round"
       />
-      {!umbraMode && s.edgeline && limits && (
+      {pathOn && !umbraMode && s.edgeline && limits && (
         <path
           d={roundCoords(fit.pathGen(limits) ?? "")}
           fill="none"
@@ -195,7 +196,7 @@ export function GeoLayer({
           strokeLinecap="round"
         />
       )}
-      {!umbraMode && s.edgeline && !limits && s.edgeOffset
+      {pathOn && !umbraMode && s.edgeline && !limits && s.edgeOffset
         ? [s.edgeOffset, -s.edgeOffset].map((off, i) => (
             <path
               key={i}

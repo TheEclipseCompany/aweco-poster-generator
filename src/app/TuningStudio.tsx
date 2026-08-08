@@ -205,8 +205,8 @@ export function TuningStudio({ eclipseId, location, aspiration, baseSpanDeg }: P
               </div>
             </>
           )}
-          <Range label="zoom min" min={0.5} max={2} step={0.05} value={cfg.spanMul[0]} onChange={(n) => pair("spanMul", 0, n)} />
-          <Range label="zoom max" min={0.5} max={2} step={0.05} value={cfg.spanMul[1]} onChange={(n) => pair("spanMul", 1, n)} />
+          <Range label="zoom min" min={0.01} max={4} step={0.01} value={cfg.spanMul[0]} onChange={(n) => pair("spanMul", 0, n)} />
+          <Range label="zoom max" min={0.01} max={4} step={0.01} value={cfg.spanMul[1]} onChange={(n) => pair("spanMul", 1, n)} />
           <Range label="pan" min={0} max={0.35} step={0.01} value={cfg.panFrac} onChange={(n) => setCfg((c) => ({ ...c, panFrac: n }))} />
           <Range label="headline min" min={0.6} max={1.6} step={0.02} value={cfg.headlineScale[0]} onChange={(n) => pair("headlineScale", 0, n)} />
           <Range label="headline max" min={0.6} max={1.6} step={0.02} value={cfg.headlineScale[1]} onChange={(n) => pair("headlineScale", 1, n)} />

@@ -403,7 +403,7 @@ export function PosterStudio({ encoded }: { encoded?: string | null }) {
           <div style={panel}>
             <p style={h}>MAP · PATH · CROP · GRAIN</p>
             <Seg label="map" value={variant.baseMap ?? "land-110m"} options={BASE_MAPS} onChange={(v) => setVariant((x) => ({ ...x, baseMap: v }))} />
-            <Seg label="path" value={variant.pathStyle ?? "centerline"} options={["centerline", "umbra"] as const} onChange={(v) => setVariant((x) => ({ ...x, pathStyle: v }))} />
+            <Seg label="path" value={variant.pathStyle ?? "centerline"} options={["centerline", "umbra", "none"] as const} onChange={(v) => setVariant((x) => ({ ...x, pathStyle: v }))} />
             {(variant.pathStyle ?? "centerline") === "umbra" && !eclipse.limits && (
               <p style={{ fontFamily: MONO, fontSize: 9.5, color: "#d8915a", margin: "0 0 6px" }}>No umbra outline for this eclipse — drawing the centerline.</p>
             )}
@@ -430,7 +430,7 @@ export function PosterStudio({ encoded }: { encoded?: string | null }) {
                 </div>
               </>
             )}
-            <Range label="zoom" min={0.5} max={2} step={0.01} value={zoom} onChange={setZoom} />
+            <Range label="zoom" min={0.01} max={4} step={0.005} value={zoom} onChange={setZoom} />
             <Range label="pan x" min={-0.35} max={0.35} step={0.01} value={panX} onChange={(n) => setCrop({ offsetLon: n * c.spanDeg })} />
             <Range label="pan y" min={-0.35} max={0.35} step={0.01} value={panY} onChange={(n) => setCrop({ offsetLat: n * c.spanDeg })} />
             <Range label="grain" min={0.3} max={0.9} step={0.01} value={variant.grainIntensity} onChange={(n) => setVariant((v) => ({ ...v, grainIntensity: n }))} />
